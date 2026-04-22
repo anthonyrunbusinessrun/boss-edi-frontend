@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 
 const API = "https://boss-edi-connector-production.up.railway.app";
+const LOGO = "https://raw.githubusercontent.com/anthonyrunbusinessrun/boss-edi-frontend/main/public/raylandlogo.png";
 
 const GLOBAL_STYLE = `
   @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Lato:wght@100;300;400;700;900&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --navy:#0A1220; --navy2:#111C2E; --blue1:#0D1B35; --blue2:#1A3A6B;
+    --navy:#0A1220; --blue1:#0D1B35; --blue2:#1A3A6B;
     --blue3:#2E5FA3; --blue4:#5080C0; --blue5:#8299C0;
-    --red1:#7A0000; --red2:#AD0000; --red3:#D52121;
+    --red2:#AD0000; --red3:#D52121;
     --white:#FFFFFF; --off:#C8D4E8; --dim:#5E7399;
     --border:rgba(46,95,163,.18);
     --blue-g:linear-gradient(135deg,#0A1A38 0%,#0D2557 50%,#1A4090 100%);
@@ -35,13 +36,13 @@ const R = (n) => ({ fontFamily:"'Rajdhani',sans-serif", ...n });
 
 function Badge({ type }) {
   const map = {
-    new: ["#3B82F6","rgba(59,130,246,.12)","NEW ORDER"],
-    update: ["#F59E0B","rgba(245,158,11,.12)","UPDATE"],
-    cancel: ["#EF4444","rgba(239,68,68,.12)","CANCELLED"],
-    sent: ["#10B981","rgba(16,185,129,.12)","SHIPPED"],
-    received: ["#8299C0","rgba(130,153,192,.12)","RECEIVED"],
-    inbound: ["#8299C0","rgba(130,153,192,.12)","INBOUND"],
-    outbound: ["#D52121","rgba(213,33,33,.12)","OUTBOUND"],
+    new:["#3B82F6","rgba(59,130,246,.12)","NEW ORDER"],
+    update:["#F59E0B","rgba(245,158,11,.12)","UPDATE"],
+    cancel:["#EF4444","rgba(239,68,68,.12)","CANCELLED"],
+    sent:["#10B981","rgba(16,185,129,.12)","SHIPPED"],
+    received:["#8299C0","rgba(130,153,192,.12)","RECEIVED"],
+    inbound:["#8299C0","rgba(130,153,192,.12)","INBOUND"],
+    outbound:["#D52121","rgba(213,33,33,.12)","OUTBOUND"],
   };
   const [c,bg,label] = map[type?.toLowerCase()] ?? ["#8299C0","rgba(130,153,192,.1)",type?.toUpperCase()||"--"];
   return <span style={{color:c,background:bg,border:`1px solid ${c}33`,padding:"2px 9px",borderRadius:3,fontSize:10,...R({fontWeight:700,letterSpacing:1})}}>{label}</span>;
@@ -188,8 +189,14 @@ export default function App() {
       <div style={{display:"flex",minHeight:"100vh"}}>
         {/* Sidebar */}
         <aside style={{width:224,background:"linear-gradient(180deg,#060E1C 0%,#091528 100%)",borderRight:"1px solid rgba(46,95,163,.18)",display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:50}}>
-          <div style={{padding:"22px 20px 18px",borderBottom:"1px solid rgba(46,95,163,.12)",marginBottom:14}}>
-            <div style={{fontSize:26,lineHeight:1,...R({fontWeight:700}),background:"linear-gradient(90deg,#fff 0%,#8299C0 100%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:3}}>RAY LAND</div>
+          <div style={{padding:"20px 20px 16px",borderBottom:"1px solid rgba(46,95,163,.12)",marginBottom:14}}>
+            {/* Ray Land cursive logo */}
+            <img
+              src={LOGO}
+              alt="Ray Land"
+              style={{width:130,maxWidth:"100%",display:"block",marginBottom:6,filter:"brightness(0) invert(1)"}}
+              onError={e=>{ e.target.style.display="none"; }}
+            />
             <div style={{fontSize:9,color:"var(--red3)",letterSpacing:3,marginTop:2,...R({fontWeight:600})}}>EDI COMMAND CENTER</div>
             <div style={{marginTop:12,padding:"5px 10px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:7,background:health?"rgba(16,185,129,.08)":"rgba(213,33,33,.08)",border:`1px solid ${health?"#10B98133":"#D5212133"}`}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:health?"#10B981":"#D52121",animation:health?"pulse 2s infinite":"none"}}/>
@@ -211,7 +218,6 @@ export default function App() {
 
         {/* Main */}
         <main style={{marginLeft:224,flex:1,padding:"28px 30px",minHeight:"100vh"}}>
-          {/* Header */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26}}>
             <div>
               <div style={{fontSize:30,lineHeight:1,letterSpacing:2,...R({fontWeight:700})}}>{{"orders":"DISTRIBUTION ORDERS","shipments":"SHIPMENTS","log":"EDI TRANSACTION LOG","test":"SYSTEM STATUS"}[tab]}</div>
@@ -220,7 +226,6 @@ export default function App() {
             <button onClick={fetchAll} style={{padding:"8px 18px",background:"transparent",border:"1px solid rgba(130,153,192,.25)",borderRadius:5,color:"var(--dim)",cursor:"pointer",...R({fontWeight:700,fontSize:11,letterSpacing:2})}}>REFRESH</button>
           </div>
 
-          {/* ORDERS */}
           {tab==="orders" && (
             <>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:26}}>
@@ -230,10 +235,7 @@ export default function App() {
                 <Stat label="997s SENT" value={out997} sub="Acknowledgments" accent="var(--red2)" delay="4"/>
               </div>
               {loading ? (
-                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,padding:60}}>
-                  <Spinner/>
-                  <div style={{color:"var(--dim)",fontSize:12,...R({letterSpacing:2})}}>LOADING ORDERS...</div>
-                </div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:16,padding:60}}><Spinner/><div style={{color:"var(--dim)",fontSize:12,...R({letterSpacing:2})}}>LOADING ORDERS...</div></div>
               ) : orders.length===0 ? (
                 <div style={{textAlign:"center",padding:"64px 0",background:"rgba(13,27,53,.5)",border:"1px solid var(--border)",borderRadius:8}}>
                   <div style={{fontSize:52,marginBottom:16}}>📭</div>
@@ -295,7 +297,6 @@ export default function App() {
             </>
           )}
 
-          {/* LOG */}
           {tab==="log" && (
             <>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:24}}>
@@ -328,7 +329,6 @@ export default function App() {
             </>
           )}
 
-          {/* TEST */}
           {tab==="test" && (
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,maxWidth:900}}>
               <div className="fade1" style={{background:"linear-gradient(135deg,rgba(13,27,53,.95),rgba(18,36,70,.9))",border:"1px solid rgba(46,95,163,.3)",borderRadius:8,padding:28}}>
@@ -351,9 +351,9 @@ export default function App() {
               </div>
               <div className="fade2" style={{background:"linear-gradient(135deg,rgba(13,27,53,.95),rgba(18,36,70,.9))",border:"1px solid rgba(46,95,163,.3)",borderRadius:8,padding:28}}>
                 <div style={{fontSize:17,letterSpacing:1,marginBottom:18,...R({fontWeight:700})}}>CONNECTION DETAILS</div>
-                {[["Service URL",API],["EDI Inbound",`${API}/edi/inbound`],["Health Check",`${API}/edi/health`],["ISA Sender","12 / 3863629312"],["FEMA Test ISA","ZZ / 521227911TDL"],["FEMA Prod ISA","ZZ / 521227911"],["Protocol","HTTPS POST"],["Database","PostgreSQL - Railway"]].map(([k,v])=>(
+                {[["Service URL",API],["AS2 Endpoint",`${API}/as2`],["HTTPS Endpoint",`${API}/edi/inbound`],["Health Check",`${API}/edi/health`],["ISA Sender","12 / 3863629312"],["FEMA Test ISA","ZZ / 521227911TDL"],["FEMA Prod ISA","ZZ / 521227911"],["Protocol","AS2 + HTTPS"],["Database","PostgreSQL - Railway"]].map(([k,v])=>(
                   <div key={k} style={{display:"flex",gap:12,padding:"9px 0",borderBottom:"1px solid rgba(130,153,192,.07)",alignItems:"flex-start"}}>
-                    <div style={{fontSize:9,color:"var(--dim)",minWidth:110,paddingTop:2,...R({fontWeight:700,letterSpacing:1})}}>{k}</div>
+                    <div style={{fontSize:9,color:"var(--dim)",minWidth:120,paddingTop:2,...R({fontWeight:700,letterSpacing:1})}}>{k}</div>
                     <div style={{fontSize:11,fontFamily:"monospace",color:"var(--blue5)",wordBreak:"break-all",lineHeight:1.5}}>{v}</div>
                   </div>
                 ))}
@@ -368,7 +368,6 @@ export default function App() {
             </div>
           )}
 
-          {/* SHIPMENTS */}
           {tab==="shipments" && (
             <div style={{textAlign:"center",padding:"64px 0",background:"rgba(13,27,53,.5)",border:"1px solid var(--border)",borderRadius:8}}>
               <div style={{fontSize:52,marginBottom:16}}>🚛</div>
@@ -379,12 +378,9 @@ export default function App() {
         </main>
       </div>
 
-      {/* Toast */}
       {toast && (
         <div style={{position:"fixed",bottom:24,right:24,zIndex:2000,padding:"13px 20px",borderRadius:6,background:toast.type==="err"?"rgba(173,0,0,.97)":"rgba(16,185,129,.97)",border:`1px solid ${toast.type==="err"?"#D52121":"#10B981"}`,boxShadow:"0 8px 32px rgba(0,0,0,.5)",animation:"fadeUp .3s ease",...R({fontWeight:700,fontSize:13,letterSpacing:1})}}>{toast.msg}</div>
       )}
-
-      {/* Dispatch Modal */}
       {dispatch && <DispatchModal order={dispatch} onClose={()=>setDispatch(null)} onDispatch={doDispatch}/>}
     </>
   );
