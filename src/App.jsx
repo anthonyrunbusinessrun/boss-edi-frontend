@@ -26,10 +26,16 @@ function inputDate(value) {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
 }
 function facilityCode(value, fallback) {
-  const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+  const normalized = String(value || '').trim();
+  if (normalized.includes('|')) return normalized.split('|')[0].trim().slice(0, 5).toUpperCase() || fallback;
+  const words = normalized.split(/\s+/).filter(Boolean);
   if (!words.length) return fallback;
   if (words.length === 1) return words[0].slice(0, 4).toUpperCase();
   return words.slice(0, 4).map(word => word[0]).join('').toUpperCase();
+}
+function facilityLabel(value) {
+  const normalized = String(value || '').trim();
+  return normalized.includes('|') ? normalized.split('|').slice(1).join('|').trim() : normalized;
 }
 
 function TruckIcon() {
@@ -102,7 +108,7 @@ function Asns({ shipments, orders, edi856Enabled, onCreate, onEdit, onDelete, on
         <div className="asn-route">
           <div className="asn-route-date">{formatDate(movementDate, true)}</div>
           <div className="asn-track"><span className="asn-track-line" /><span className="asn-point asn-point-start" /><span className="asn-truck"><TruckIcon /></span><span className="asn-point asn-point-end" /></div>
-          <div className="asn-stops"><div><strong>{facilityCode(origin, 'ORG')}</strong><span>{origin}</span></div><div><strong>{facilityCode(destination, 'DST')}</strong><span>{destination}</span></div></div>
+          <div className="asn-stops"><div><strong>{facilityCode(origin, 'ORG')}</strong><span>{facilityLabel(origin)}</span></div><div><strong>{facilityCode(destination, 'DST')}</strong><span>{facilityLabel(destination)}</span></div></div>
         </div>
       </div>
       <footer><span>{item.bol_number ? `BOL ${item.bol_number}` : `Order ${item.do_number}`}</span><div className="asn-actions"><span className={edi856Enabled ? 'eligible' : ''}>{edi856Enabled ? '856 eligible for approved workflow' : 'Internal only · not transmitted'}</span><button onClick={() => onEdit(item)}>Edit</button><button onClick={() => onSend(item)}>Send</button>{item.status === 'draft' && <button className="danger-text" onClick={() => onDelete(item)}>Delete</button>}</div></footer>
