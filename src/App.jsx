@@ -1,187 +1,101 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, clearSession, hasSession, login, setSession } from './api';
 import './styles.css';
 
 const LOGO = '/raylandlogo.png';
-const NAV = [['overview', 'Overview'], ['orders', 'Orders'], ['activity', 'EDI activity'], ['system', 'System']];
+const NAV = [
+  ['overview', 'Overview', '01'], ['orders', 'Orders', '02'], ['inventory', 'Inventory', '03'],
+  ['shipping', 'Shipping', '04'], ['asns', 'ASNs', '05'], ['activity', 'EDI activity', '06'], ['system', 'System', '07'],
+];
+const SHIPMENT_LABELS = { draft: 'Draft', ready_to_ship: 'Ready to ship', in_transit: 'In transit', delivered: 'Delivered', cancelled: 'Cancelled' };
 
 function formatDate(value, withTime = false) {
-  if (!value) return '-';
-  const date = /^\d{8}$/.test(String(value))
-    ? new Date(`${String(value).slice(0, 4)}-${String(value).slice(4, 6)}-${String(value).slice(6, 8)}T00:00:00`)
-    : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat(undefined, withTime
-    ? { dateStyle: 'medium', timeStyle: 'short' }
-    : { dateStyle: 'medium' }).format(date);
+  if (!value) return '—';
+  const raw = String(value);
+  const date = /^\d{8}$/.test(raw) ? new Date(`${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}T00:00:00`) : new Date(value);
+  if (Number.isNaN(date.getTime())) return raw;
+  return new Intl.DateTimeFormat(undefined, withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }).format(date);
 }
+function num(value) { return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(Number(value || 0)); }
 
 function Status({ value }) {
   const normalized = String(value || 'unknown').toLowerCase();
-  const tone = ['delivered', 'processed', 'ready', 'configured', 'ok'].includes(normalized)
-    ? 'success'
-    : ['failed', 'rejected', 'unavailable'].includes(normalized)
-      ? 'danger'
-      : ['queued', 'retrying', 'sending', 'manual', 'configuration_required'].includes(normalized)
-        ? 'warning'
-        : 'neutral';
-  return <span className={`status status-${tone}`}>{normalized.replaceAll('_', ' ')}</span>;
+  const success = ['delivered', 'processed', 'ready', 'configured', 'ok'];
+  const danger = ['failed', 'rejected', 'unavailable', 'cancelled', 'low_stock'];
+  const warning = ['queued', 'retrying', 'sending', 'manual', 'configuration_required', 'draft', 'ready_to_ship'];
+  const tone = success.includes(normalized) ? 'success' : danger.includes(normalized) ? 'danger' : warning.includes(normalized) ? 'warning' : 'neutral';
+  return <span className={`status status-${tone}`}>{SHIPMENT_LABELS[normalized] || normalized.replaceAll('_', ' ')}</span>;
 }
 
 function Login({ onSuccess }) {
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  async function submit(event) {
-    event.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      const result = await login(password);
-      setSession(result.accessToken);
-      onSuccess();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <main className="login-shell">
-      <section className="login-card">
-        <img src={LOGO} alt="Ray Land" className="login-logo" />
-        <div className="eyebrow">BUSINESSOS</div>
-        <h1>EDI operations</h1>
-        <p className="muted">A focused workspace for FEMA purchase orders and GEX transaction status.</p>
-        <form onSubmit={submit}>
-          <label htmlFor="password">Administrator password</label>
-          <input id="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required autoFocus />
-          {error && <div className="form-error" role="alert">{error}</div>}
-          <button className="primary-button" disabled={busy || !password}>{busy ? 'Signing in...' : 'Sign in'}</button>
-        </form>
-        <p className="login-note">Authorized Ray Land personnel only.</p>
-      </section>
-    </main>
-  );
+  const [password, setPassword] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  async function submit(event) { event.preventDefault(); setBusy(true); setError(''); try { const result = await login(password); setSession(result.accessToken); onSuccess(); } catch (err) { setError(err.message); } finally { setBusy(false); } }
+  return <main className="login-shell"><section className="login-card"><div className="login-accent" /><img src={LOGO} alt="Ray Land" className="login-logo" /><div className="eyebrow">BUSINESSOS · SECURE ACCESS</div><h1>EDI operations</h1><p>A single workspace for orders, inventory, shipping, ASNs, and GEX transaction status.</p><form onSubmit={submit}><label htmlFor="password">Administrator password</label><input id="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required autoFocus />{error && <div className="form-error" role="alert">{error}</div>}<button className="primary-button" disabled={busy || !password}>{busy ? 'Signing in…' : 'Enter operations hub'}</button></form><p className="login-note">Authorized Ray Land personnel only.</p></section></main>;
 }
 
-function Metric({ label, value, note, tone = 'blue' }) {
-  return <div className={`metric metric-${tone}`}><span>{label}</span><strong>{value ?? 0}</strong><small>{note}</small></div>;
-}
-
-function Empty({ title, detail }) {
-  return <div className="empty-state"><div className="empty-mark">-</div><h3>{title}</h3><p>{detail}</p></div>;
-}
+function Metric({ label, value, note, accent = false }) { return <div className={`metric ${accent ? 'metric-accent' : ''}`}><span>{label}</span><strong>{value ?? 0}</strong><small>{note}</small></div>; }
+function Empty({ title, detail }) { return <div className="empty-state"><div className="empty-mark">·</div><h3>{title}</h3><p>{detail}</p></div>; }
+function PageHeading({ eyebrow, title, detail, action }) { return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1>{detail && <p>{detail}</p>}</div>{action}</div>; }
 
 function MessageTable({ messages, onRetry, compact = false }) {
-  if (!messages?.length) return <Empty title="No EDI activity" detail="Transactions will appear here after a test or production message is received." />;
-  return (
-    <div className="table-scroll"><table><thead><tr><th>Time</th><th>Direction</th><th>Document</th><th>Order</th><th>Status</th>{!compact && <th>Attempts</th>}{!compact && <th aria-label="Actions" />}</tr></thead>
-      <tbody>{messages.map(message => <tr key={message.id}>
-        <td className="nowrap">{formatDate(message.created_at, true)}</td><td>{message.direction}</td><td className="document-type">X12 {message.message_type}</td><td>{message.do_number || '-'}</td><td><Status value={message.status} /></td>
-        {!compact && <td>{message.attempts ?? 0}</td>}
-        {!compact && <td className="action-cell">{message.direction === 'outbound' && ['failed', 'retrying'].includes(message.status) && <button className="text-button" onClick={() => onRetry(message.id)}>Retry</button>}</td>}
-      </tr>)}</tbody>
-    </table></div>
-  );
+  if (!messages?.length) return <Empty title="No EDI activity" detail="Transactions appear here after a test or production message is received." />;
+  return <div className="table-scroll"><table><thead><tr><th>Time</th><th>Direction</th><th>Document</th><th>Order</th><th>Status</th>{!compact && <th>Attempts</th>}{!compact && <th />}</tr></thead><tbody>{messages.map(message => <tr key={message.id}><td className="nowrap">{formatDate(message.created_at, true)}</td><td>{message.direction}</td><td className="document-type">X12 {message.message_type}</td><td>{message.do_number || '—'}</td><td><Status value={message.status} /></td>{!compact && <td>{message.attempts ?? 0}</td>}{!compact && <td className="action-cell">{message.direction === 'outbound' && ['failed', 'retrying'].includes(message.status) && <button className="text-button" onClick={() => onRetry(message.id)}>Retry</button>}</td>}</tr>)}</tbody></table></div>;
 }
 
-function Overview({ dashboard, onNavigate, onRetry }) {
+function Overview({ dashboard, shipments, onNavigate, onRetry }) {
   const counts = dashboard?.counts || {};
-  return <>
-    <div className="page-heading"><div><div className="eyebrow">CURRENT OPERATIONS</div><h1>Overview</h1></div><button className="secondary-button" onClick={() => onNavigate('system')}>Connection details</button></div>
-    <div className="metrics-grid"><Metric label="Orders" value={counts.total} note="Received and recorded" /><Metric label="New orders" value={counts.active} note="Current order type" tone="indigo" /><Metric label="850 received" value={counts.inbound_850} note="Inbound purchase orders" tone="slate" /><Metric label="997 pending" value={counts.pending} note="Awaiting delivery" tone={counts.pending ? 'amber' : 'green'} /></div>
-    {counts.failed > 0 && <div className="alert alert-danger"><div><strong>{counts.failed} transaction{counts.failed === 1 ? '' : 's'} need attention.</strong><span>Review EDI activity and retry after resolving the connection issue.</span></div><button className="secondary-button" onClick={() => onNavigate('activity')}>Review</button></div>}
-    <section className="panel"><div className="panel-heading"><div><h2>Recent EDI activity</h2><p>Latest inbound and outbound messages.</p></div><button className="text-button" onClick={() => onNavigate('activity')}>View all</button></div><MessageTable messages={dashboard?.recentMessages || []} onRetry={onRetry} compact /></section>
-  </>;
+  return <><PageHeading eyebrow="LIVE OPERATIONS" title="Command overview" detail="Orders, supply demand, movement, and EDI health in one view." action={<button className="secondary-button" onClick={() => onNavigate('system')}>Connection status</button>} /><div className="metrics-grid"><Metric label="Open orders" value={counts.active} note={`${counts.total || 0} total recorded`} /><Metric label="Inventory SKUs" value={counts.inventory_skus} note="Demand-linked catalog" /><Metric label="In transit" value={counts.in_transit} note={`${counts.shipments || 0} shipment records`} /><Metric label="997 pending" value={counts.pending} note="Waiting for GEX route" accent={Number(counts.pending) > 0} /></div>{counts.failed > 0 && <div className="alert alert-danger"><div><strong>{counts.failed} transaction{counts.failed === 1 ? '' : 's'} need attention</strong><span>Review the EDI activity audit trail.</span></div><button className="secondary-button" onClick={() => onNavigate('activity')}>Review</button></div>}<div className="overview-grid"><section className="panel"><div className="panel-heading"><div><h2>Recent EDI activity</h2><p>Latest inbound and outbound messages.</p></div><button className="text-button" onClick={() => onNavigate('activity')}>View all</button></div><MessageTable messages={dashboard?.recentMessages || []} onRetry={onRetry} compact /></section><section className="panel movement-panel"><div className="panel-heading"><div><h2>Shipment movement</h2><p>Newest operational records.</p></div><button className="text-button" onClick={() => onNavigate('shipping')}>Open board</button></div>{shipments.length ? <div className="movement-list">{shipments.slice(0, 5).map(item => <div key={item.asn_id}><div><strong>{item.asn_id}</strong><span>{item.do_number}</span></div><Status value={item.status} /></div>)}</div> : <Empty title="No shipments yet" detail="Create a draft ASN when an order is ready for fulfillment." />}</section></div></>;
 }
 
 function Orders({ orders, selected, onSelect, detail, loadingDetail }) {
-  return <>
-    <div className="page-heading"><div><div className="eyebrow">X12 850</div><h1>Orders</h1><p>Purchase orders received from FEMA through GEX.</p></div></div>
-    <div className="split-layout">
-      <section className="panel order-list-panel">{orders.length === 0 ? <Empty title="No orders received" detail="The first validated 850 will appear here." /> : <div className="order-list">{orders.map(order => <button key={order.do_number} className={`order-row ${selected === order.do_number ? 'selected' : ''}`} onClick={() => onSelect(order.do_number)}><div><strong>{order.do_number}</strong><span>{order.destination_facility || 'Destination not provided'}</span></div><div className="order-row-meta"><Status value={order.acknowledgment_status} /><span>{order.line_count} line{order.line_count === 1 ? '' : 's'}</span></div></button>)}</div>}</section>
-      <section className="panel order-detail-panel">
-        {!selected ? <Empty title="Select an order" detail="Choose a purchase order to review its details and acknowledgment state." /> : loadingDetail ? <div className="loading">Loading order...</div> : detail ? <div>
-          <div className="detail-header"><div><div className="eyebrow">DISTRIBUTION ORDER</div><h2>{detail.order.do_number}</h2></div><Status value={detail.order.order_type} /></div>
-          <dl className="details-grid"><div><dt>Origin</dt><dd>{detail.order.origin_facility || '-'}</dd></div><div><dt>Destination</dt><dd>{detail.order.destination_facility || '-'}</dd></div><div><dt>Requested delivery</dt><dd>{formatDate(detail.order.requested_delivery)}</dd></div><div><dt>RRF number</dt><dd>{detail.order.rrf_number || '-'}</dd></div><div><dt>Fund cite</dt><dd>{detail.order.fund_cite || '-'}</dd></div><div><dt>Received</dt><dd>{formatDate(detail.order.created_at, true)}</dd></div></dl>
-          {detail.order.notes && <div className="notes"><span>Notes</span>{detail.order.notes}</div>}
-          <h3 className="section-label">Line items</h3>{detail.lines.length ? <div className="line-items">{detail.lines.map(line => <div className="line-item" key={line.id}><div><strong>{line.sku || `Line ${line.line_number}`}</strong><span>{line.description || 'No description supplied'}</span></div><b>{line.quantity} {line.unit || 'UN'}</b></div>)}</div> : <p className="muted">No line items were parsed.</p>}
-          <h3 className="section-label">Transaction history</h3><MessageTable messages={detail.messages} compact />
-        </div> : <Empty title="Order unavailable" detail="The order could not be loaded." />}
-      </section>
-    </div>
-  </>;
+  return <><PageHeading eyebrow="X12 850" title="Orders" detail="Purchase orders received from FEMA through GEX." /><div className="split-layout"><section className="panel order-list-panel">{orders.length === 0 ? <Empty title="No orders received" detail="The first validated 850 will appear here." /> : <div className="order-list">{orders.map(order => <button key={order.do_number} className={`order-row ${selected === order.do_number ? 'selected' : ''}`} onClick={() => onSelect(order.do_number)}><div><strong>{order.do_number}</strong><span>{order.destination_facility || 'Destination not provided'}</span></div><div className="order-row-meta"><Status value={order.acknowledgment_status} /><span>{order.line_count} lines</span></div></button>)}</div>}</section><section className="panel order-detail-panel">{!selected ? <Empty title="Select an order" detail="Choose a purchase order to review fulfillment and acknowledgment details." /> : loadingDetail ? <div className="loading">Loading order…</div> : detail ? <div><div className="detail-header"><div><div className="eyebrow">DISTRIBUTION ORDER</div><h2>{detail.order.do_number}</h2></div><Status value={detail.order.order_type} /></div><dl className="details-grid"><div><dt>Origin</dt><dd>{detail.order.origin_facility || '—'}</dd></div><div><dt>Destination</dt><dd>{detail.order.destination_facility || '—'}</dd></div><div><dt>Requested delivery</dt><dd>{formatDate(detail.order.requested_delivery)}</dd></div><div><dt>RRF number</dt><dd>{detail.order.rrf_number || '—'}</dd></div><div><dt>Fund cite</dt><dd>{detail.order.fund_cite || '—'}</dd></div><div><dt>Received</dt><dd>{formatDate(detail.order.created_at, true)}</dd></div></dl><h3 className="section-label">Line items</h3>{detail.lines.length ? <div className="line-items">{detail.lines.map(line => <div className="line-item" key={line.id}><div><strong>{line.sku || `Line ${line.line_number}`}</strong><span>{line.description || 'No description supplied'}</span></div><b>{num(line.quantity)} {line.unit || 'UN'}</b></div>)}</div> : <p>No line items were parsed.</p>}<h3 className="section-label">Shipment records</h3>{detail.shipments?.length ? <div className="mini-list">{detail.shipments.map(shipment => <div key={shipment.asn_id}><strong>{shipment.asn_id}</strong><Status value={shipment.status} /></div>)}</div> : <p>No ASN has been created for this order.</p>}<h3 className="section-label">Transaction history</h3><MessageTable messages={detail.messages} compact /></div> : <Empty title="Order unavailable" detail="The order could not be loaded." />}</section></div></>;
 }
 
-function Activity({ messages, onRetry }) {
-  const [filter, setFilter] = useState('all');
-  const visible = filter === 'all' ? messages : messages.filter(item => item.status === filter);
-  return <><div className="page-heading"><div><div className="eyebrow">AUDIT TRAIL</div><h1>EDI activity</h1><p>Actual message state from receipt through delivery.</p></div></div><section className="panel"><div className="filter-row">{['all', 'queued', 'delivered', 'failed', 'rejected'].map(item => <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>)}</div><MessageTable messages={visible} onRetry={onRetry} /></section></>;
+function Inventory({ data, onEdit }) {
+  const [search, setSearch] = useState(''); const inventory = data?.inventory || []; const summary = data?.summary || {};
+  const visible = inventory.filter(item => `${item.sku} ${item.description || ''} ${item.location || ''}`.toLowerCase().includes(search.toLowerCase()));
+  return <><PageHeading eyebrow="SUPPLY POSITION" title="Inventory" detail="Stock position compared with open order demand." /><div className="metrics-grid"><Metric label="Tracked SKUs" value={summary.skus} note="From inventory and orders" /><Metric label="Units on hand" value={num(summary.onHand)} note="Recorded physical stock" /><Metric label="Allocated" value={num(summary.allocated)} note="Reserved for fulfillment" /><Metric label="Remaining demand" value={num(summary.remaining)} note="Ordered less shipped" accent={Number(summary.remaining) > 0} /></div><section className="panel"><div className="toolbar-row"><div><h2>Stock ledger</h2><p>Update counts without changing source purchase orders.</p></div><input className="search-input" placeholder="Search SKU, item, or location" value={search} onChange={event => setSearch(event.target.value)} /></div>{visible.length ? <div className="table-scroll"><table><thead><tr><th>Item</th><th>On hand</th><th>Allocated</th><th>Available</th><th>Demand</th><th>Remaining</th><th>Location</th><th>Status</th><th /></tr></thead><tbody>{visible.map(item => { const configured = Boolean(item.updated_at); const low = configured && Number(item.available) <= Number(item.reorder_point); return <tr key={item.sku}><td><strong>{item.sku}</strong><span className="cell-subtitle">{item.description || 'No description'}</span></td><td>{num(item.on_hand)} {item.unit}</td><td>{num(item.allocated)}</td><td>{num(item.available)}</td><td>{num(item.ordered_quantity)}</td><td>{num(item.remaining_to_ship)}</td><td>{item.location || '—'}</td><td><Status value={!configured ? 'not_counted' : low ? 'low_stock' : 'ok'} /></td><td><button className="text-button" onClick={() => onEdit(item)}>Edit</button></td></tr>; })}</tbody></table></div> : <Empty title="No inventory matches" detail="Try a different search or wait for order line demand." />}</section></>;
 }
+
+function Shipping({ shipments, onUpdate }) {
+  const [filter, setFilter] = useState('all'); const [selected, setSelected] = useState(null); const visible = filter === 'all' ? shipments : shipments.filter(item => item.status === filter); const current = shipments.find(item => item.asn_id === selected) || visible[0]; const counts = status => shipments.filter(item => item.status === status).length;
+  return <><PageHeading eyebrow="FULFILLMENT" title="Shipping" detail="Follow every load from draft through delivery." /><div className="metrics-grid"><Metric label="Ready" value={counts('ready_to_ship')} note="Prepared for pickup" /><Metric label="In transit" value={counts('in_transit')} note="Currently moving" /><Metric label="Delivered" value={counts('delivered')} note="Completed shipments" /><Metric label="Draft ASNs" value={counts('draft')} note="Internal preparation" accent={counts('draft') > 0} /></div><div className="split-layout shipping-layout"><section className="panel"><div className="filter-row">{['all', 'draft', 'ready_to_ship', 'in_transit', 'delivered'].map(item => <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{SHIPMENT_LABELS[item] || item}</button>)}</div>{visible.length ? <div className="shipment-list">{visible.map(item => <button key={item.asn_id} className={current?.asn_id === item.asn_id ? 'selected' : ''} onClick={() => setSelected(item.asn_id)}><div><strong>{item.asn_id}</strong><span>Order {item.do_number}</span></div><div><Status value={item.status} /><small>{formatDate(item.updated_at, true)}</small></div></button>)}</div> : <Empty title="No shipments in this stage" detail="Shipment records will move here as their status changes." />}</section><section className="panel shipment-detail">{current ? <><div className="detail-header"><div><div className="eyebrow">ADVANCE SHIPMENT NOTICE</div><h2>{current.asn_id}</h2></div><Status value={current.status} /></div><dl className="details-grid two-col"><div><dt>Order</dt><dd>{current.do_number}</dd></div><div><dt>Carrier</dt><dd>{current.carrier || 'Not assigned'}</dd></div><div><dt>Tracking</dt><dd>{current.tracking_number || '—'}</dd></div><div><dt>Bill of lading</dt><dd>{current.bol_number || '—'}</dd></div><div><dt>Ship date</dt><dd>{formatDate(current.ship_date)}</dd></div><div><dt>ETA</dt><dd>{formatDate(current.eta)}</dd></div><div><dt>Line items</dt><dd>{current.line_count}</dd></div><div><dt>Total units</dt><dd>{num(current.total_units)}</dd></div></dl><div className="status-actions"><span>Update internal status</span>{current.status === 'draft' && <button onClick={() => onUpdate(current.asn_id, 'ready_to_ship')}>Mark ready</button>}{['draft', 'ready_to_ship'].includes(current.status) && <button onClick={() => onUpdate(current.asn_id, 'in_transit')}>Mark in transit</button>}{current.status === 'in_transit' && <button onClick={() => onUpdate(current.asn_id, 'delivered')}>Mark delivered</button>}</div></> : <Empty title="No shipment selected" detail="Create a draft ASN to start tracking fulfillment." />}</section></div></>;
+}
+
+function Asns({ shipments, orders, edi856Enabled, onCreate }) {
+  return <><PageHeading eyebrow="X12 856 · INTERNAL PREP" title="Advance shipment notices" detail="Prepare shipment records while keeping external transmission controlled." action={<button className="primary-button action-button" onClick={onCreate}>Create draft ASN</button>} /><div className={`alert ${edi856Enabled ? 'alert-success' : 'alert-info'}`}><div><strong>{edi856Enabled ? '856 transmission is enabled' : '856 transmission remains locked'}</strong><span>{edi856Enabled ? 'Approved ASNs can be transmitted through the configured pathway.' : 'Drafts are internal only until FEMA/GEX approves the 856 guide and testing.'}</span></div><Status value={edi856Enabled ? 'configured' : 'not approved'} /></div><section className="panel"><div className="panel-heading"><div><h2>ASN register</h2><p>{shipments.length} records across {orders.length} available orders.</p></div></div>{shipments.length ? <div className="asn-grid">{shipments.map(item => <article key={item.asn_id}><div className="asn-top"><span>ASN</span><Status value={item.status} /></div><h3>{item.asn_id}</h3><p>Order {item.do_number}</p><dl><div><dt>Carrier</dt><dd>{item.carrier || 'Not assigned'}</dd></div><div><dt>Tracking</dt><dd>{item.tracking_number || '—'}</dd></div><div><dt>ETA</dt><dd>{formatDate(item.eta)}</dd></div><div><dt>856 status</dt><dd>{edi856Enabled ? 'Eligible' : 'Not transmitted'}</dd></div></dl></article>)}</div> : <Empty title="No ASNs created" detail="Create the first internal draft from an existing order." />}</section></>;
+}
+
+function Activity({ messages, onRetry }) { const [filter, setFilter] = useState('all'); const visible = filter === 'all' ? messages : messages.filter(item => item.status === filter); return <><PageHeading eyebrow="AUDIT TRAIL" title="EDI activity" detail="Actual message state from receipt through delivery." /><section className="panel"><div className="filter-row">{['all', 'queued', 'delivered', 'failed', 'rejected'].map(item => <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)}>{item}</button>)}</div><MessageTable messages={visible} onRetry={onRetry} /></section></>; }
 
 function System({ health, dashboard }) {
   const connection = dashboard?.connection || {};
-  return <>
-    <div className="page-heading"><div><div className="eyebrow">READINESS</div><h1>System</h1><p>Connection configuration and service state.</p></div></div>
-    <div className="system-grid">
-      <section className="panel"><div className="panel-heading"><div><h2>Gateway readiness</h2><p>Database, security, and outbound configuration.</p></div><Status value={health?.status || 'unavailable'} /></div><dl className="system-list"><div><dt>Database</dt><dd><Status value={health?.database || 'unknown'} /></dd></div><div><dt>Inbound HTTPS</dt><dd><Status value={connection.inbound || 'unknown'} /></dd></div><div><dt>Outbound 997 mode</dt><dd><Status value={connection.outboundMode || 'unknown'} /></dd></div><div><dt>Outbound connection</dt><dd><Status value={connection.outbound || 'unknown'} /></dd></div><div><dt>856 shipment notices</dt><dd><Status value={connection.edi856Enabled ? 'enabled' : 'not approved'} /></dd></div></dl></section>
-      <section className="panel"><h2>Production scope</h2><div className="scope-list"><div className="scope-item enabled"><span>850</span><div><strong>Purchase order</strong><p>Receive, validate, store, and acknowledge.</p></div></div><div className="scope-item enabled"><span>997</span><div><strong>Functional acknowledgment</strong><p>Queue, deliver, retry, and audit.</p></div></div><div className="scope-item"><span>856</span><div><strong>Shipment notice</strong><p>Disabled until FEMA/GEX approves the document and mapping.</p></div></div></div></section>
-    </div>
-    {health?.issues?.length > 0 && <section className="panel configuration-panel"><h2>Configuration required</h2><p>Complete these items before requesting GEX testing.</p><ul>{health.issues.map(issue => <li key={issue}>{issue}</li>)}</ul></section>}
-    <div className="alert alert-info"><div><strong>AS2 is not used for this GEX pathway.</strong><span>The project email states that GEX can push only through HTTPS on port 443.</span></div></div>
-  </>;
+  return <><PageHeading eyebrow="READINESS" title="System" detail="Connection configuration and service state." /><div className="system-grid"><section className="panel"><div className="panel-heading"><div><h2>Gateway readiness</h2><p>Database, security, and outbound configuration.</p></div><Status value={health?.status || 'unavailable'} /></div><dl className="system-list"><div><dt>Database</dt><dd><Status value={health?.database || 'unknown'} /></dd></div><div><dt>Inbound HTTPS</dt><dd><Status value={connection.inbound || 'unknown'} /></dd></div><div><dt>Outbound 997 mode</dt><dd><Status value={connection.outboundMode || 'unknown'} /></dd></div><div><dt>Outbound connection</dt><dd><Status value={connection.outbound || 'unknown'} /></dd></div><div><dt>856 shipment notices</dt><dd><Status value={connection.edi856Enabled ? 'enabled' : 'not approved'} /></dd></div></dl></section><section className="panel"><h2>Production scope</h2><div className="scope-list"><div className="scope-item enabled"><span>850</span><div><strong>Purchase order</strong><p>Receive, validate, store, and acknowledge.</p></div></div><div className="scope-item enabled"><span>997</span><div><strong>Functional acknowledgment</strong><p>Queue, deliver, retry, and audit.</p></div></div><div className="scope-item"><span>856</span><div><strong>Shipment notice</strong><p>Internal drafts only until FEMA/GEX approval.</p></div></div></div></section></div>{health?.issues?.length > 0 && <section className="panel configuration-panel"><h2>Configuration required</h2><ul>{health.issues.map(issue => <li key={issue}>{issue}</li>)}</ul></section>}<div className="alert alert-info"><div><strong>AS2 is not used for this GEX pathway</strong><span>GEX can push through authenticated HTTPS on port 443.</span></div></div></>;
+}
+
+function Modal({ title, children, onClose }) { return <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && onClose()}><section className="modal" role="dialog" aria-modal="true" aria-label={title}><div className="modal-heading"><div><div className="eyebrow">OPERATIONS UPDATE</div><h2>{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close">×</button></div>{children}</section></div>; }
+
+function InventoryModal({ item, onClose, onSave }) {
+  const [form, setForm] = useState({ description: item.description || '', unit: item.unit || 'UN', onHand: item.on_hand || 0, allocated: item.allocated || 0, reorderPoint: item.reorder_point || 0, location: item.location || '' }); const field = (key, value) => setForm(current => ({ ...current, [key]: value }));
+  return <Modal title={`Update ${item.sku}`} onClose={onClose}><form className="form-grid" onSubmit={event => { event.preventDefault(); onSave(item.sku, form); }}><label className="span-2">Description<input value={form.description} onChange={e => field('description', e.target.value)} /></label><label>On hand<input type="number" min="0" step="any" value={form.onHand} onChange={e => field('onHand', e.target.value)} /></label><label>Allocated<input type="number" min="0" step="any" value={form.allocated} onChange={e => field('allocated', e.target.value)} /></label><label>Reorder point<input type="number" min="0" step="any" value={form.reorderPoint} onChange={e => field('reorderPoint', e.target.value)} /></label><label>Unit<input value={form.unit} maxLength="10" onChange={e => field('unit', e.target.value)} /></label><label className="span-2">Location<input value={form.location} onChange={e => field('location', e.target.value)} placeholder="Warehouse / aisle / bin" /></label><div className="form-actions span-2"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button">Save inventory</button></div></form></Modal>;
+}
+
+function AsnModal({ orders, onClose, onSave }) {
+  const [form, setForm] = useState({ doNumber: orders[0]?.do_number || '', carrier: '', trackingNumber: '', bolNumber: '', trailerNumber: '', eta: '', notes: '' }); const field = (key, value) => setForm(current => ({ ...current, [key]: value }));
+  return <Modal title="Create draft ASN" onClose={onClose}><form className="form-grid" onSubmit={event => { event.preventDefault(); onSave(form); }}><label className="span-2">Source order<select required value={form.doNumber} onChange={e => field('doNumber', e.target.value)}>{orders.map(order => <option key={order.do_number} value={order.do_number}>{order.do_number} · {order.destination_facility || 'No destination'}</option>)}</select></label><label>Carrier<input value={form.carrier} onChange={e => field('carrier', e.target.value)} placeholder="Optional" /></label><label>Tracking number<input value={form.trackingNumber} onChange={e => field('trackingNumber', e.target.value)} placeholder="Optional" /></label><label>Bill of lading<input value={form.bolNumber} onChange={e => field('bolNumber', e.target.value)} placeholder="Optional" /></label><label>Trailer number<input value={form.trailerNumber} onChange={e => field('trailerNumber', e.target.value)} placeholder="Optional" /></label><label className="span-2">Estimated arrival<input type="date" value={form.eta ? `${form.eta.slice(0,4)}-${form.eta.slice(4,6)}-${form.eta.slice(6,8)}` : ''} onChange={e => field('eta', e.target.value.replaceAll('-', ''))} /></label><label className="span-2">Internal notes<textarea rows="3" value={form.notes} onChange={e => field('notes', e.target.value)} /></label><div className="form-actions span-2"><button type="button" className="secondary-button" onClick={onClose}>Cancel</button><button className="primary-button">Create internal draft</button></div></form></Modal>;
 }
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(hasSession());
-  const [tab, setTab] = useState('overview');
-  const [dashboard, setDashboard] = useState(null);
-  const [orders, setOrders] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [health, setHealth] = useState(null);
-  const [selected, setSelected] = useState(null);
-  const [detail, setDetail] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [error, setError] = useState('');
-  const [lastUpdated, setLastUpdated] = useState(null);
-
-  const load = useCallback(async () => {
-    if (!hasSession()) return;
-    setLoading(true); setError('');
-    try {
-      const [nextDashboard, nextOrders, nextMessages, nextHealth] = await Promise.all([
-        api('/api/dashboard'), api('/api/orders'), api('/api/messages'), api('/edi/health', { auth: false, allowError: true }),
-      ]);
-      setDashboard(nextDashboard); setOrders(nextOrders.orders || []); setMessages(nextMessages.messages || []); setHealth(nextHealth); setLastUpdated(new Date());
-    } catch (err) {
-      if (err.status === 401) { clearSession(); setAuthenticated(false); } else setError(err.message);
-    } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => {
-    if (!authenticated) return;
-    load();
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
-  }, [authenticated, load]);
-
-  async function selectOrder(doNumber) {
-    setSelected(doNumber); setLoadingDetail(true);
-    try { setDetail(await api(`/api/orders/${encodeURIComponent(doNumber)}`)); }
-    catch (err) { setError(err.message); setDetail(null); }
-    finally { setLoadingDetail(false); }
-  }
+  const [authenticated, setAuthenticated] = useState(hasSession()); const [tab, setTab] = useState('overview'); const [dashboard, setDashboard] = useState(null); const [orders, setOrders] = useState([]); const [messages, setMessages] = useState([]); const [health, setHealth] = useState(null); const [inventory, setInventory] = useState({ inventory: [], summary: {} }); const [shipments, setShipments] = useState([]); const [edi856Enabled, setEdi856Enabled] = useState(false); const [selected, setSelected] = useState(null); const [detail, setDetail] = useState(null); const [loading, setLoading] = useState(false); const [loadingDetail, setLoadingDetail] = useState(false); const [error, setError] = useState(''); const [lastUpdated, setLastUpdated] = useState(null); const [inventoryEdit, setInventoryEdit] = useState(null); const [asnModal, setAsnModal] = useState(false);
+  const load = useCallback(async () => { if (!hasSession()) return; setLoading(true); setError(''); try { const [nextDashboard, nextOrders, nextMessages, nextHealth, nextInventory, nextShipments] = await Promise.all([api('/api/dashboard'), api('/api/orders'), api('/api/messages'), api('/edi/health', { auth: false, allowError: true }), api('/api/inventory'), api('/api/shipments')]); setDashboard(nextDashboard); setOrders(nextOrders.orders || []); setMessages(nextMessages.messages || []); setHealth(nextHealth); setInventory(nextInventory); setShipments(nextShipments.shipments || []); setEdi856Enabled(Boolean(nextShipments.edi856Enabled)); setLastUpdated(new Date()); } catch (err) { if (err.status === 401) { clearSession(); setAuthenticated(false); } else setError(err.message); } finally { setLoading(false); } }, []);
+  useEffect(() => { if (!authenticated) return undefined; load(); const interval = setInterval(load, 30000); return () => clearInterval(interval); }, [authenticated, load]);
+  async function selectOrder(doNumber) { setSelected(doNumber); setLoadingDetail(true); try { setDetail(await api(`/api/orders/${encodeURIComponent(doNumber)}`)); } catch (err) { setError(err.message); setDetail(null); } finally { setLoadingDetail(false); } }
   async function retry(id) { try { await api(`/api/messages/${id}/retry`, { method: 'POST' }); await load(); } catch (err) { setError(err.message); } }
+  async function saveInventory(sku, form) { try { await api(`/api/inventory/${encodeURIComponent(sku)}`, { method: 'PUT', body: JSON.stringify(form) }); setInventoryEdit(null); await load(); } catch (err) { setError(err.message); } }
+  async function createAsn(form) { try { await api('/api/shipments', { method: 'POST', body: JSON.stringify(form) }); setAsnModal(false); setTab('shipping'); await load(); } catch (err) { setError(err.message); } }
+  async function updateShipment(asnId, status) { try { await api(`/api/shipments/${encodeURIComponent(asnId)}`, { method: 'PATCH', body: JSON.stringify({ status }) }); await load(); } catch (err) { setError(err.message); } }
   function logout() { clearSession(); setAuthenticated(false); }
+  const currentLabel = useMemo(() => NAV.find(item => item[0] === tab)?.[1] || 'Operations', [tab]);
   if (!authenticated) return <Login onSuccess={() => setAuthenticated(true)} />;
-
-  return <div className="app-shell">
-    <aside className="sidebar"><div className="brand"><img src={LOGO} alt="Ray Land" /><span>EDI OPERATIONS</span></div><nav>{NAV.map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>)}</nav><div className="sidebar-footer"><div><span>Gateway</span><Status value={health?.status || 'checking'} /></div><small>{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Connecting...'}</small><button onClick={logout}>Sign out</button></div></aside>
-    <main className="main-content"><header className="mobile-header"><img src={LOGO} alt="Ray Land" /><button onClick={logout}>Sign out</button></header><div className="mobile-nav">{NAV.map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>)}</div>
-      {error && <div className="alert alert-danger"><div><strong>Something needs attention.</strong><span>{error}</span></div><button className="text-button" onClick={() => setError('')}>Dismiss</button></div>}
-      {loading && !dashboard ? <div className="loading page-loading">Loading EDI operations...</div> : <>{tab === 'overview' && <Overview dashboard={dashboard} onNavigate={setTab} onRetry={retry} />}{tab === 'orders' && <Orders orders={orders} selected={selected} onSelect={selectOrder} detail={detail} loadingDetail={loadingDetail} />}{tab === 'activity' && <Activity messages={messages} onRetry={retry} />}{tab === 'system' && <System health={health} dashboard={dashboard} />}</>}
-    </main>
-  </div>;
+  return <div className="app-shell"><aside className="sidebar"><div className="brand"><img src={LOGO} alt="Ray Land" /><span>EDI COMMAND</span></div><nav aria-label="Primary navigation">{NAV.map(([key, label, index]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}><small>{index}</small><span>{label}</span></button>)}</nav><div className="sidebar-footer"><div><span>Gateway</span><Status value={health?.status || 'checking'} /></div><small>{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : 'Connecting…'}</small><button onClick={logout}>Sign out</button></div></aside><main className="main-content"><header className="mobile-header"><img src={LOGO} alt="Ray Land" /><div><span>{currentLabel}</span><button onClick={logout}>Sign out</button></div></header><div className="mobile-nav">{NAV.map(([key, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>)}</div>{error && <div className="alert alert-danger"><div><strong>Something needs attention</strong><span>{error}</span></div><button className="text-button" onClick={() => setError('')}>Dismiss</button></div>}{loading && !dashboard ? <div className="loading page-loading">Loading operations hub…</div> : <>{tab === 'overview' && <Overview dashboard={dashboard} shipments={shipments} onNavigate={setTab} onRetry={retry} />}{tab === 'orders' && <Orders orders={orders} selected={selected} onSelect={selectOrder} detail={detail} loadingDetail={loadingDetail} />}{tab === 'inventory' && <Inventory data={inventory} onEdit={setInventoryEdit} />}{tab === 'shipping' && <Shipping shipments={shipments} onUpdate={updateShipment} />}{tab === 'asns' && <Asns shipments={shipments} orders={orders} edi856Enabled={edi856Enabled} onCreate={() => setAsnModal(true)} />}{tab === 'activity' && <Activity messages={messages} onRetry={retry} />}{tab === 'system' && <System health={health} dashboard={dashboard} />}</>}</main>{inventoryEdit && <InventoryModal item={inventoryEdit} onClose={() => setInventoryEdit(null)} onSave={saveInventory} />}{asnModal && <AsnModal orders={orders} onClose={() => setAsnModal(false)} onSave={createAsn} />}</div>;
 }

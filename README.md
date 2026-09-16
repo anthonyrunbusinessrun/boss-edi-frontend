@@ -2,6 +2,11 @@
 
 Minimal authenticated dashboard for the BusinessOS EDI Gateway.
 
+The operations workspace includes order review, demand-linked inventory,
+shipment status tracking, internal ASN drafting, EDI activity, and connection
+readiness. The interface uses a dark navy palette with a restrained dark-red
+accent and responsive mobile navigation.
+
 The UI shows actual transaction states. A generated 997 is shown as queued until
 the backend receives a successful response from the configured GEX outbound
 endpoint. EDI 856 controls are intentionally absent until FEMA/GEX approves the
