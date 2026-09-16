@@ -18,4 +18,6 @@ document and mapping.
 `npm run build` produces the static application. `npm start` serves `dist` with
 the Node static server on Railway's `PORT`. Set `VITE_API_URL` as a build-time
 variable to the connector's public URL and set `API_ORIGIN` to the same origin
-for the runtime Content Security Policy.
+for the runtime Content Security Policy. On Railway, both variables must be set;
+`VITE_API_URL` is embedded into the browser build while `API_ORIGIN` is read by
+the production server at runtime.
