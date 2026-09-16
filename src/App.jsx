@@ -88,7 +88,14 @@ function Shipping({ shipments, onUpdate, onEdit, onDelete, onSend }) {
 
 function Asns({ shipments, orders, edi856Enabled, onCreate, onEdit, onDelete, onSend }) {
   const progress = { draft: '8%', ready_to_ship: '22%', in_transit: '56%', delivered: '94%', cancelled: '8%' };
-  return <><PageHeading eyebrow="X12 856 · SHIPMENT CONTROL" title="Advance shipment notices" detail="Track each ASN from its source order through final delivery." action={<button className="primary-button action-button" onClick={onCreate}>Create draft ASN</button>} /><div className={`alert ${edi856Enabled ? 'alert-success' : 'alert-info'}`}><div><strong>{edi856Enabled ? '856 transmission is enabled' : '856 transmission remains locked'}</strong><span>{edi856Enabled ? 'Approved ASNs can be transmitted through the configured pathway.' : 'Drafts are internal only until FEMA/GEX approves the 856 guide and testing.'}</span></div><Status value={edi856Enabled ? 'configured' : 'not approved'} /></div><section className="panel asn-register"><div className="panel-heading"><div><h2>ASN register</h2><p>{shipments.length} records across {orders.length} available orders.</p></div></div>{shipments.length ? <div className="asn-list">{shipments.map(item => {
+  const displayedShipments = [...shipments].sort((a, b) => {
+    const aReference = /^A\d+$/.test(a.asn_id);
+    const bReference = /^A\d+$/.test(b.asn_id);
+    if (aReference !== bReference) return aReference ? -1 : 1;
+    if (aReference) return b.asn_id.localeCompare(a.asn_id, undefined, { numeric: true });
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+  return <><PageHeading eyebrow="X12 856 · SHIPMENT CONTROL" title="Advance shipment notices" detail="Track each ASN from its source order through final delivery." action={<button className="primary-button action-button" onClick={onCreate}>Create draft ASN</button>} /><div className={`alert ${edi856Enabled ? 'alert-success' : 'alert-info'}`}><div><strong>{edi856Enabled ? '856 transmission is enabled' : '856 transmission remains locked'}</strong><span>{edi856Enabled ? 'Approved ASNs can be transmitted through the configured pathway.' : 'Drafts are internal only until FEMA/GEX approves the 856 guide and testing.'}</span></div><Status value={edi856Enabled ? 'configured' : 'not approved'} /></div><section className="panel asn-register"><div className="panel-heading"><div><h2>ASN register</h2><p>{shipments.length} records across {orders.length} available orders.</p></div></div>{shipments.length ? <div className="asn-list">{displayedShipments.map(item => {
     const origin = item.origin_facility || 'Origin pending';
     const destination = item.destination_facility || item.destination_address || 'Destination pending';
     const movementDate = item.ship_date || item.updated_at;
