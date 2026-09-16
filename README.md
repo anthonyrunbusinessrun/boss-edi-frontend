@@ -4,7 +4,9 @@ Minimal authenticated dashboard for the BusinessOS EDI Gateway.
 
 The operations workspace includes order review, demand-linked inventory,
 shipment status tracking, internal ASN drafting, EDI activity, and connection
-readiness. The interface uses a dark navy palette with a restrained dark-red
+readiness. A partner-network workspace shows connection profiles, document
+maps, workflow stages, and onboarding gates in the style of a managed EDI
+platform. The interface uses a dark navy palette with a restrained dark-red
 accent and responsive mobile navigation.
 
 The UI shows actual transaction states. A generated 997 is shown as queued until
