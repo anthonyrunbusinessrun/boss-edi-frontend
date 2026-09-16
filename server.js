@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   if (urlPath === '/health') {
     res.writeHead(200, { 'content-type':'application/json', 'cache-control':'no-store' });
-    return res.end(JSON.stringify({ status:'online', service:'Ray Land EDI Operations', version:'2.0.0' }));
+    return res.end(JSON.stringify({ status:'online', service:'Ray Land EDI Operations', version:'2.1.0' }));
   }
   const requested = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
   let file = path.resolve(root, requested);
