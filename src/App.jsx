@@ -18,6 +18,16 @@ function formatDate(value, withTime = false) {
   return new Intl.DateTimeFormat(undefined, withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }).format(date);
 }
 function num(value) { return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(Number(value || 0)); }
+function facilityCode(value, fallback) {
+  const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return fallback;
+  if (words.length === 1) return words[0].slice(0, 4).toUpperCase();
+  return words.slice(0, 4).map(word => word[0]).join('').toUpperCase();
+}
+
+function TruckIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5h11v10H3zM14 9h3.2l3.3 3.3v3.2H14zM6.7 19a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4ZM17.6 19a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" /></svg>;
+}
 
 function Status({ value }) {
   const normalized = String(value || 'unknown').toLowerCase();
@@ -64,7 +74,33 @@ function Shipping({ shipments, onUpdate }) {
 }
 
 function Asns({ shipments, orders, edi856Enabled, onCreate }) {
-  return <><PageHeading eyebrow="X12 856 · INTERNAL PREP" title="Advance shipment notices" detail="Prepare shipment records while keeping external transmission controlled." action={<button className="primary-button action-button" onClick={onCreate}>Create draft ASN</button>} /><div className={`alert ${edi856Enabled ? 'alert-success' : 'alert-info'}`}><div><strong>{edi856Enabled ? '856 transmission is enabled' : '856 transmission remains locked'}</strong><span>{edi856Enabled ? 'Approved ASNs can be transmitted through the configured pathway.' : 'Drafts are internal only until FEMA/GEX approves the 856 guide and testing.'}</span></div><Status value={edi856Enabled ? 'configured' : 'not approved'} /></div><section className="panel"><div className="panel-heading"><div><h2>ASN register</h2><p>{shipments.length} records across {orders.length} available orders.</p></div></div>{shipments.length ? <div className="asn-grid">{shipments.map(item => <article key={item.asn_id}><div className="asn-top"><span>ASN</span><Status value={item.status} /></div><h3>{item.asn_id}</h3><p>Order {item.do_number}</p><dl><div><dt>Carrier</dt><dd>{item.carrier || 'Not assigned'}</dd></div><div><dt>Tracking</dt><dd>{item.tracking_number || '—'}</dd></div><div><dt>ETA</dt><dd>{formatDate(item.eta)}</dd></div><div><dt>856 status</dt><dd>{edi856Enabled ? 'Eligible' : 'Not transmitted'}</dd></div></dl></article>)}</div> : <Empty title="No ASNs created" detail="Create the first internal draft from an existing order." />}</section></>;
+  const progress = { draft: '8%', ready_to_ship: '22%', in_transit: '56%', delivered: '94%', cancelled: '8%' };
+  return <><PageHeading eyebrow="X12 856 · SHIPMENT CONTROL" title="Advance shipment notices" detail="Track each ASN from its source order through final delivery." action={<button className="primary-button action-button" onClick={onCreate}>Create draft ASN</button>} /><div className={`alert ${edi856Enabled ? 'alert-success' : 'alert-info'}`}><div><strong>{edi856Enabled ? '856 transmission is enabled' : '856 transmission remains locked'}</strong><span>{edi856Enabled ? 'Approved ASNs can be transmitted through the configured pathway.' : 'Drafts are internal only until FEMA/GEX approves the 856 guide and testing.'}</span></div><Status value={edi856Enabled ? 'configured' : 'not approved'} /></div><section className="panel asn-register"><div className="panel-heading"><div><h2>ASN register</h2><p>{shipments.length} records across {orders.length} available orders.</p></div></div>{shipments.length ? <div className="asn-list">{shipments.map(item => {
+    const origin = item.origin_facility || 'Origin pending';
+    const destination = item.destination_facility || item.destination_address || 'Destination pending';
+    const movementDate = item.ship_date || item.updated_at;
+    return <article className={`asn-card asn-${item.status}`} key={item.asn_id} style={{ '--route-progress': progress[item.status] || '8%' }}>
+      <header className="asn-band">
+        <div className="asn-identity"><span>ASN</span><strong>{item.asn_id}</strong></div>
+        <div className="asn-load"><span className="asn-load-mark">↕</span><strong>{item.carrier || 'Carrier pending'}</strong><span>{num(item.total_units)} units</span></div>
+        <div className="asn-state"><TruckIcon /><strong>{SHIPMENT_LABELS[item.status] || item.status}</strong></div>
+      </header>
+      <div className="asn-body">
+        <dl className="asn-facts">
+          <div><dt>Trailer number</dt><dd>{item.trailer_number || 'N/A'}</dd></div>
+          <div><dt>Distribution order</dt><dd>{item.do_number}</dd></div>
+          <div><dt>Tracking</dt><dd>{item.tracking_number || 'Not assigned'}</dd></div>
+          <div><dt>ETA</dt><dd>{formatDate(item.eta)}</dd></div>
+        </dl>
+        <div className="asn-route">
+          <div className="asn-route-date">{formatDate(movementDate, true)}</div>
+          <div className="asn-track"><span className="asn-track-line" /><span className="asn-point asn-point-start" /><span className="asn-truck"><TruckIcon /></span><span className="asn-point asn-point-end" /></div>
+          <div className="asn-stops"><div><strong>{facilityCode(origin, 'ORG')}</strong><span>{origin}</span></div><div><strong>{facilityCode(destination, 'DST')}</strong><span>{destination}</span></div></div>
+        </div>
+      </div>
+      <footer><span>{item.bol_number ? `BOL ${item.bol_number}` : `Order ${item.do_number}`}</span><span className={edi856Enabled ? 'eligible' : ''}>{edi856Enabled ? '856 eligible for approved workflow' : 'Internal only · not transmitted'}</span></footer>
+    </article>;
+  })}</div> : <Empty title="No ASNs created" detail="Create the first internal draft from an existing order." />}</section></>;
 }
 
 function Connections({ integrations }) {

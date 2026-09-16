@@ -1,4 +1,4 @@
-const API_URL = (import.meta.env.VITE_API_URL || 'https://boss-edi-connector-production.up.railway.app').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/connector' : 'https://boss-edi-connector-production.up.railway.app')).replace(/\/$/, '');
 const TOKEN_KEY = 'boss_edi_session';
 
 export function hasSession() { return Boolean(sessionStorage.getItem(TOKEN_KEY)); }
